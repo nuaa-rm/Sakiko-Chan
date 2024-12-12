@@ -9,6 +9,8 @@ from botpy.ext.cog_yaml import read
 from botpy.message import GroupMessage
 
 import notion
+from shell import PersistentShell
+
 
 test_config = read(os.path.join(os.path.dirname(__file__), "config.yaml"))
 NOTION_TOKEN = test_config["NOTION_TOKEN"]
@@ -22,12 +24,14 @@ headers = {
 }
 proxies = {"http": None, "https": None}
 _log = logging.get_logger()
+persistent_shell = None
 
 
 class CommandType(Enum):
     LOG = "/log"
     PROGRESS = "/进度"
     INIT = "/init"
+    SHELL = "/shell"
 
 
 def match_command(input_str):
@@ -50,9 +54,22 @@ def extract_numbers(input_string):
     # 使用正则表达式提取所有数字字符
     return ''.join(re.findall(r'\d', input_string))
 
+def format_as_code_block(content):
+    """
+    使用 Markdown 代码块格式化内容，避免触发 URL 检测。
+    """
+    return f"```\n{content}\n```"
+
+def sanitize_message_content(content):
+    """
+    格式化消息内容，避免触发 URL 检测。
+    """
+    sanitized = content.replace(".", "[dot]")  # 将点替换为 [dot]
+    return sanitized
 
 
 def process_command(message):
+    global persistent_shell
     command_operator = notion.CommandOperator(NOTION_TOKEN, MEMBER_DATABASE_ID, LOG_DATABASE_ID, PROGRESS_DATABASE_ID)
     result = match_command(message.content)
 
@@ -82,6 +99,21 @@ def process_command(message):
             _log.info(f"Creating Notion page with Progress content: {remaining_str}")
             res = command_operator.create_notion_progress(remaining_str, notion_userid, group_name)
             return "status_code:" + str(res.status_code)
+        elif command == CommandType.SHELL.value:
+            if remaining_str.isspace() or not remaining_str:
+                # 创建或重置 PersistentShell 实例
+                if persistent_shell is not None:
+                    _log.info("Restarting PersistentShell instance.")
+                    persistent_shell.close()
+                persistent_shell = PersistentShell()
+                return "Shell started or restarted."
+            else:
+                if persistent_shell is None:
+                    return "Shell not initialized. Use `/shell` to start it."
+                _log.info(f"Executing shell command: {remaining_str}")
+                res = persistent_shell.run_command(remaining_str)
+                _log.info(f"Shell command result: {res}")
+                return sanitize_message_content(res) if res else " "
         else:
             _log.info(f"其他命令: {command}，内容: {remaining_str}")
             return "Invalid command"
