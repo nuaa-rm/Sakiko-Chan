@@ -17,12 +17,6 @@ NOTION_TOKEN = test_config["NOTION_TOKEN"]
 MEMBER_DATABASE_ID = test_config["MEMBER_DATABASE_ID"]
 LOG_DATABASE_ID = test_config["LOG_DATABASE_ID"]
 PROGRESS_DATABASE_ID = test_config["PROGRESS_DATABASE_ID"]
-headers = {
-    "Authorization": "Bearer " + NOTION_TOKEN,
-    "Content-Type": "application/json",
-    "Notion-Version": "2022-06-28",
-}
-proxies = {"http": None, "https": None}
 _log = logging.get_logger()
 persistent_shell = None
 
@@ -35,30 +29,18 @@ class CommandType(Enum):
 
 
 def match_command(input_str):
-    # 构造一个正则表达式模式，用于匹配命令
     pattern = "|".join([re.escape(command.value) for command in CommandType])
-
-    # 使用re.search来查找匹配的命令
     match = re.search(pattern, input_str)
-
     if match:
-        # 如果找到匹配，返回命令和剩余的字符串
         matched_command = match.group(0)
         for command in CommandType:
             if command.value == matched_command:
-                remaining_str = input_str[match.end():].strip()  # 剩余的字符串
+                remaining_str = input_str[match.end():].strip()
                 return {matched_command: remaining_str}
     return None
 
 def extract_numbers(input_string):
-    # 使用正则表达式提取所有数字字符
     return ''.join(re.findall(r'\d', input_string))
-
-def format_as_code_block(content):
-    """
-    使用 Markdown 代码块格式化内容，避免触发 URL 检测。
-    """
-    return f"```\n{content}\n```"
 
 def sanitize_message_content(content):
     """
